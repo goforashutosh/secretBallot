@@ -36,6 +36,8 @@ export class secretBallot extends SmartContract {
     @state(Bool) initialised_flag = State<Bool>();
     @state(Field) ballot_ID = State<Field>();
 
+    // TODO: add a time limit using this.network.blocklength
+
     init(){
         super.init();
         this.initialised_flag.set(Bool(false));
@@ -50,6 +52,10 @@ export class secretBallot extends SmartContract {
         this.ballot_ID.set(Field(0));
     }
 
+    /**
+     * @param ID should be a random field element, so people can't correlate votes across different polls
+     * @param voterListRoot is the Merkle tree root for the voter list
+     */
     @method initState(ID: Field, voterListRoot: Field){
         // only allow initState if state has not been initialised before
         this.initialised_flag.assertEquals(Bool(false));

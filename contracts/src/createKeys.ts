@@ -9,12 +9,13 @@ import {
   } from 'snarkyjs';
 
 import {writeFileSync, readFileSync} from 'fs';
+import * as inputs from './inputs.js';
 
 await isReady;
 
-console.log('SnarkyJS loaded');
+// console.log('SnarkyJS loaded');
 
-const N = 2n**2n;
+const N = 2n**BigInt(inputs.log_num_voters);
 
 let priv_key_array: string[] = [];
 let pub_key_array: string[] = [];
@@ -27,7 +28,7 @@ for (let i=0; i<N; i++){
     pub_key_array.push(pub_key.toBase58());
 }
 
-console.log(priv_key_array);
+// console.log(priv_key_array);
 
 const json_priv_keys = JSON.stringify(priv_key_array);
 const json_pub_keys = JSON.stringify(pub_key_array);
@@ -36,8 +37,7 @@ writeFileSync('keys/private_keys.json', json_priv_keys, 'utf8');
 writeFileSync('keys/public_keys.json', json_pub_keys, 'utf8');
 
 
-
-console.log('Shutting down');
+// console.log('Shutting down');
 
 await shutdown();
 
