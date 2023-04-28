@@ -82,7 +82,6 @@ voter_list_tree.fill(pub_key_hash_arr);
 // console.log("The Merkle Tree is:");
 // displayTree(voter_list_tree);
 // console.log("Root is: ", voter_list_tree.getRoot().toString());
-
 let vote_count_tree = new MerkleTree(inputs.log_options + 1);
 let nullifier_map = new MerkleMap();
 
