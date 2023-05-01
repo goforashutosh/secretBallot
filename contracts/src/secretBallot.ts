@@ -26,7 +26,13 @@ import * as inputs from './inputs.js';
 export class VoterListMerkleWitness extends MerkleWitness(inputs.log_num_voters + 1){}
 export class VoteCountMerkleWitness extends MerkleWitness(inputs.log_options + 1){}
 
-
+/**
+ * @param voter_list_root is the Merkle root of the voter list
+ * @param nullifier_map_root is the MerkleMap root of the map nullifiers -> Field, which records whether a nullifier has been used before
+ * @param vote_count_root is the Merkle root of vote count tree. Value at leaf represents the votes for that leaf (index)
+ * @param initialised_flag becomes true once initState has been called and ensures it can't be called again
+ * @param ballot_ID should be a random Field element
+ */
 export class secretBallot extends SmartContract {
     
     @state(Field) voter_list_root = State<Field>();
@@ -70,6 +76,8 @@ export class secretBallot extends SmartContract {
     }
 
     /**  
+     * Used to lodge your vote on the zkapp
+     * This method should not be called with the key you are using to vote
      * @param privKey is your private key for which hash(public_key) is a part of the voter list Merkle tree
      * @param voterListWitness is the witness that your hash(public_key) belongs in the voter list tree
      * @param nullifierWitness is the MerkleMap witness for proving: nullifier_map[nullifierHash] =0

@@ -28,7 +28,7 @@ import * as inputs from './inputs.js';
 * @param zk_app_inst The zkapp you want to display
 */
 function dispAllVar(zk_app_inst: secretBallot){
-  console.log("\nAll variables of the contract are:")
+  console.log("\nAll state variables of the contract are:")
   console.log("voter list root: ", zk_app_inst.voter_list_root.get().toString());
   console.log("vote count root: ", zk_app_inst.vote_count_root.get().toString());
   console.log("nullifier map root: ", zk_app_inst.nullifier_map_root.get().toString());
@@ -156,12 +156,13 @@ dispAllVar(zkAppInstance);
 
 {
   // call vote()- correctly
-  // create witness for index 0
 
+  console.log("\nBlock length increased to 10");
   Local.setBlockchainLength(UInt32.from(10));
 
   console.log("\n--- vote() called correctly for private_key[0]- voting for option 0 ---");
   
+  // create witness for index 0
   const voter_list_witness = new VoterListMerkleWitness(offChainVar.voterListTree.getWitness(0n));
   const ballot_ID = zkAppInstance.ballot_ID.get();
 
@@ -172,7 +173,7 @@ dispAllVar(zkAppInstance);
   const vote_count_witness = new VoteCountMerkleWitness(offChainVar.voteCountTree.getWitness(option))
   const currentVotes = offChainVar.voteCountTree.getNode(0, option);
 
-  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
+  console.log("Before txn call - (local) nullifierMap[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
 
   // should use a different account for submitting the vote txn than what is used for voting
   // can use any account to submit txn-- account should only know what the correct private key is
@@ -197,7 +198,7 @@ dispAllVar(zkAppInstance);
   } catch(err: any){
     console.error("Error:", err.message);
   } finally {
-    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
+    console.log("After txn call- (local) nullifierMap[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
     dispAllVar(zkAppInstance);
   }
   console.log("The block length is", Local.getNetworkState().blockchainLength.toString());
@@ -219,7 +220,7 @@ dispAllVar(zkAppInstance);
   const vote_count_witness = new VoteCountMerkleWitness(offChainVar.voteCountTree.getWitness(option))
   const currentVotes = offChainVar.voteCountTree.getNode(0, option);
 
-  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
+  console.log("Before txn call - (local) nullifierMap[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
   
   try{
     const txn = await Mina.transaction(deployerAccount, () => {
@@ -242,7 +243,7 @@ dispAllVar(zkAppInstance);
   } catch(err: any){
     console.error("Error:", err.message);
   } finally {
-    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
+    console.log("After txn call- (local) nullifierMap[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
     dispAllVar(zkAppInstance);
   }
   console.log("The block length is", Local.getNetworkState().blockchainLength.toString());
@@ -263,7 +264,7 @@ dispAllVar(zkAppInstance);
   const vote_count_witness = new VoteCountMerkleWitness(offChainVar.voteCountTree.getWitness(option))
   const currentVotes = offChainVar.voteCountTree.getNode(0, option);
 
-  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
+  console.log("Before txn call - (local) nullifierMap[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
   
   try{
     const txn = await Mina.transaction(deployerAccount, () => {
@@ -286,7 +287,7 @@ dispAllVar(zkAppInstance);
   } catch(err: any){
     console.error("Error:", err.message);
   } finally {
-    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
+    console.log("After txn call- (local) nullifierMap[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
     dispAllVar(zkAppInstance);
   }
   console.log("The block length is", Local.getNetworkState().blockchainLength.toString());
@@ -295,13 +296,16 @@ dispAllVar(zkAppInstance);
 {
   // Shows the events created while voting
   const events = await zkAppInstance.fetchEvents(UInt32.from(10), UInt32.from(10));
-  console.log("\nThe events are: ")
+  console.log("\nThe events in block length=10 are: ")
   events.forEach((elem, index, arr) => {
     console.log(elem.type, JSON.stringify(elem.event))
   })
 }
 
 {
+  console.log("\nBlock length increased to 11");
+  Local.setBlockchainLength(UInt32.from(11));
+
   // call vote()- correctly
   console.log("\n--- vote() called correctly for private_key[1] - voting for option 1---");
   // create witness for index 1
@@ -317,7 +321,7 @@ dispAllVar(zkAppInstance);
   const vote_count_witness = new VoteCountMerkleWitness(offChainVar.voteCountTree.getWitness(option))
   const currentVotes = offChainVar.voteCountTree.getNode(0, option);
 
-  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
+  console.log("Before txn call - (local) nullifierMap[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
   
   try{
     const txn = await Mina.transaction(deployerAccount, () => {
@@ -340,7 +344,7 @@ dispAllVar(zkAppInstance);
   } catch(err: any){
     console.error("Error:", err.message);
   } finally {
-    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
+    console.log("After txn call- (local) nullifierMap[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
     dispAllVar(zkAppInstance);
   }
   console.log("The block length is", Local.getNetworkState().blockchainLength.toString());
@@ -362,7 +366,7 @@ dispAllVar(zkAppInstance);
   const vote_count_witness = new VoteCountMerkleWitness(offChainVar.voteCountTree.getWitness(option))
   const currentVotes = offChainVar.voteCountTree.getNode(0, option);
 
-  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
+  console.log("Before txn call - (local) nullifierMap[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
   
   try{
     const txn = await Mina.transaction(deployerAccount, () => {
@@ -385,10 +389,19 @@ dispAllVar(zkAppInstance);
   } catch(err: any){
     console.error("Error:", err.message);
   } finally {
-    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
+    console.log("After txn call- (local) nullifierMap[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
     dispAllVar(zkAppInstance);
   }
   console.log("The block length is", Local.getNetworkState().blockchainLength.toString());
+}
+
+{
+  // Shows the events created while voting
+  const events = await zkAppInstance.fetchEvents(UInt32.from(11), UInt32.from(11));
+  console.log("\nThe events in block length=11 are: ")
+  events.forEach((elem, index, arr) => {
+    console.log(elem.type, JSON.stringify(elem.event))
+  })
 }
 
 console.log("\nThe vote count tree is: ")
