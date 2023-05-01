@@ -36,6 +36,11 @@ export class secretBallot extends SmartContract {
     @state(Bool) initialised_flag = State<Bool>();
     @state(Field) ballot_ID = State<Field>();
 
+    events= {
+        "add-nullifier-hash": Field, 
+        "vote-option": Field
+    }
+
     // TODO: add a time limit using this.network.blocklength
 
     init(){
@@ -141,5 +146,11 @@ export class secretBallot extends SmartContract {
             // set nullifier_map[nullifierHash] = 1
             const [new_nullifier_root, _] = nullifierWitness.computeRootAndKey(Field(1));
             this.nullifier_map_root.set(new_nullifier_root);
+            
+            // emit nullifier hash and vote option to allow others to update off chain state
+            this.emitEvent("add-nullifier-hash", nullifierHash);
+            // TODO: does this need to be proven?
+            this.emitEvent("vote-option", voteCountWitness.calculateIndex()); 
+
     }
 }

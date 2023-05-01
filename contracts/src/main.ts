@@ -10,7 +10,8 @@ import {
   AccountUpdate,
   MerkleTree,
   MerkleMap,
-  Poseidon
+  Poseidon,
+  UInt32
 } from 'snarkyjs';
 
 import {
@@ -39,7 +40,7 @@ function dispAllVar(zk_app_inst: secretBallot){
 * Function displays the given Merkle tree level by level
 * @param mtree is the Merkle tree you want to display
 */
-function displayTree(mtree:MerkleTree){
+function displayTree(mtree: MerkleTree){
   let h = mtree.height;
   for(let i= 0; i<h; i++){
     console.log("Level:", i);
@@ -69,27 +70,45 @@ let pub_key_array: PublicKey[] = [];
 priv_key_array = priv_key_array_str.map(key => PrivateKey.fromBase58(key));
 pub_key_array = pub_key_array_str.map(key => PublicKey.fromBase58(key));
 
-// need to add 1 to make the height right
-let voter_list_tree = new MerkleTree(inputs.log_num_voters + 1);
+/**
+ * Used to store the Merkle trees and maps
+ */
+class offChainStorage{
+  readonly voterListTree: MerkleTree;
+  voteCountTree: MerkleTree; 
+  nullifierMap: MerkleMap;
+  
+  /**
+   * @param log_num_voters is the ceiling of the log of the number of voters
+   * @param log_options is the ceiling of the log of the number of voting options
+   * @param voterList is array containing hashes of public keys which are allowed to vote
+   */
+  constructor(log_num_voters: number, log_options: number, voterList: Field[]){
+    // need to add 1 to make the height right
+    this.voterListTree = new MerkleTree(log_num_voters + 1);
+    this.voteCountTree= new MerkleTree(log_options + 1);
+    this.nullifierMap= new MerkleMap();
+
+    this.voterListTree.fill(voterList);
+
+  }
+
+  /**  
+  * Used to update the nullifierMap and voteCountTree after a successful vote
+  */
+  updateOffChainState(nullifier_hash: Field, vote_option: bigint){
+    this.nullifierMap.set(nullifier_hash, Field(1));
+    const current_votes = this.voteCountTree.getNode(0, vote_option);
+    this.voteCountTree.setLeaf(vote_option, current_votes.add(1));
+  }
+}
 
 let pub_key_hash_arr: Field[] = pub_key_array.map(key => Poseidon.hash(key.toFields()));
-voter_list_tree.fill(pub_key_hash_arr);
+
+let offChainVar = new offChainStorage(inputs.log_num_voters, inputs.log_options, pub_key_hash_arr);
 
 console.log("\nThe voter list Merkle tree is:");
-displayTree(voter_list_tree);
-
-// TODO: could put all these off chain state variables into a class
-let vote_count_tree = new MerkleTree(inputs.log_options + 1);
-let nullifier_map = new MerkleMap();
-
-/**  
-* Used to update the nullifier_map and vote_count_tree after a successful vote
-*/
-function updateOffChainState(nullifier_hash: Field, vote_option: bigint){
-nullifier_map.set(nullifier_hash, Field(1));
-const current_votes = vote_count_tree.getNode(0, vote_option);
-vote_count_tree.setLeaf(vote_option, current_votes.add(1));
-}
+displayTree(offChainVar.voterListTree);
 
 
 // Smart contract deployment
@@ -119,35 +138,41 @@ dispAllVar(zkAppInstance);
 
 
 // call initState() separately
-// using code blocks allows me copy paste easily
+// using code blocks allows me to copy paste easily
 {
   const txn = await Mina.transaction(deployerAccount, () => {
-    zkAppInstance.initState(Field.random(), voter_list_tree.getRoot());
+    zkAppInstance.initState(Field.random(), offChainVar.voterListTree.getRoot());
   });
+  console.log("The block length is", Local.getNetworkState().blockchainLength.toString());
   console.log("\n--- initState() called ---");
   await txn.prove(); 
   await txn.sign([deployerKey]).send();
   dispAllVar(zkAppInstance);
 
   console.log("\nThe vote count tree is: ")
-  displayTree(vote_count_tree);
+  displayTree(offChainVar.voteCountTree);
+  console.log("The block length is", Local.getNetworkState().blockchainLength.toString());
 }
 
 {
   // call vote()- correctly
   // create witness for index 0
+
+  Local.setBlockchainLength(UInt32.from(10));
+
   console.log("\n--- vote() called correctly for private_key[0]- voting for option 0 ---");
-  const voter_list_witness = new VoterListMerkleWitness(voter_list_tree.getWitness(0n));
+  
+  const voter_list_witness = new VoterListMerkleWitness(offChainVar.voterListTree.getWitness(0n));
   const ballot_ID = zkAppInstance.ballot_ID.get();
 
   const nullifier_hash = Poseidon.hash(priv_key_array[0].toFields().concat([ballot_ID]))
-  const nullifier_witness = nullifier_map.getWitness(nullifier_hash);
+  const nullifier_witness = offChainVar.nullifierMap.getWitness(nullifier_hash);
 
   const option = 0n;
-  const vote_count_witness = new VoteCountMerkleWitness(vote_count_tree.getWitness(option))
-  const currentVotes = vote_count_tree.getNode(0, option);
+  const vote_count_witness = new VoteCountMerkleWitness(offChainVar.voteCountTree.getWitness(option))
+  const currentVotes = offChainVar.voteCountTree.getNode(0, option);
 
-  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", nullifier_map.get(nullifier_hash).toString());
+  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
 
   // should use a different account for submitting the vote txn than what is used for voting
   // can use any account to submit txn-- account should only know what the correct private key is
@@ -167,15 +192,15 @@ dispAllVar(zkAppInstance);
     // update the off chain state only if the txn succeeds
     if (txn_result.isSuccess){
       // update off chain state
-      updateOffChainState(nullifier_hash, option);
+      offChainVar.updateOffChainState(nullifier_hash, option);
     }
   } catch(err: any){
     console.error("Error:", err.message);
   } finally {
-    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", nullifier_map.get(nullifier_hash).toString());
+    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
     dispAllVar(zkAppInstance);
   }
-  
+  console.log("The block length is", Local.getNetworkState().blockchainLength.toString());
 }
 
 {
@@ -183,18 +208,18 @@ dispAllVar(zkAppInstance);
   console.log("\n--- vote() called incorrectly- wrong voter list witness ---");
   
   // create witness for index 2
-  const voter_list_witness = new VoterListMerkleWitness(voter_list_tree.getWitness(2n));
+  const voter_list_witness = new VoterListMerkleWitness(offChainVar.voterListTree.getWitness(2n));
   const ballot_ID = zkAppInstance.ballot_ID.get();
 
   // private_key[1] used - not yet voted with this
   const nullifier_hash = Poseidon.hash(priv_key_array[1].toFields().concat([ballot_ID]))
-  const nullifier_witness = nullifier_map.getWitness(nullifier_hash);
+  const nullifier_witness = offChainVar.nullifierMap.getWitness(nullifier_hash);
 
   const option = 0n;
-  const vote_count_witness = new VoteCountMerkleWitness(vote_count_tree.getWitness(option))
-  const currentVotes = vote_count_tree.getNode(0, option);
+  const vote_count_witness = new VoteCountMerkleWitness(offChainVar.voteCountTree.getWitness(option))
+  const currentVotes = offChainVar.voteCountTree.getNode(0, option);
 
-  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", nullifier_map.get(nullifier_hash).toString());
+  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
   
   try{
     const txn = await Mina.transaction(deployerAccount, () => {
@@ -212,33 +237,33 @@ dispAllVar(zkAppInstance);
     // update the off chain state only if the txn succeeds
     if (txn_result.isSuccess){
       // update off chain state
-      updateOffChainState(nullifier_hash, option);
+      offChainVar.updateOffChainState(nullifier_hash, option);
     }
   } catch(err: any){
     console.error("Error:", err.message);
   } finally {
-    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", nullifier_map.get(nullifier_hash).toString());
+    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
     dispAllVar(zkAppInstance);
   }
-  
+  console.log("The block length is", Local.getNetworkState().blockchainLength.toString());
 }
 
 {
   // call vote()- incorrectly- wrong private key
   console.log("\n--- vote() called incorrectly- wrong private key ---");
   // create witness for index 1
-  const voter_list_witness = new VoterListMerkleWitness(voter_list_tree.getWitness(1n));
+  const voter_list_witness = new VoterListMerkleWitness(offChainVar.voterListTree.getWitness(1n));
   const ballot_ID = zkAppInstance.ballot_ID.get();
 
   // private_key[1] used - not yet voted with this
   const nullifier_hash = Poseidon.hash(priv_key_array[1].toFields().concat([ballot_ID]))
-  const nullifier_witness = nullifier_map.getWitness(nullifier_hash);
+  const nullifier_witness = offChainVar.nullifierMap.getWitness(nullifier_hash);
 
   const option = 0n;
-  const vote_count_witness = new VoteCountMerkleWitness(vote_count_tree.getWitness(option))
-  const currentVotes = vote_count_tree.getNode(0, option);
+  const vote_count_witness = new VoteCountMerkleWitness(offChainVar.voteCountTree.getWitness(option))
+  const currentVotes = offChainVar.voteCountTree.getNode(0, option);
 
-  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", nullifier_map.get(nullifier_hash).toString());
+  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
   
   try{
     const txn = await Mina.transaction(deployerAccount, () => {
@@ -256,34 +281,43 @@ dispAllVar(zkAppInstance);
     // update the off chain state only if the txn succeeds
     if (txn_result.isSuccess){
       // update off chain state
-      updateOffChainState(nullifier_hash, option);
+      offChainVar.updateOffChainState(nullifier_hash, option);
     }
   } catch(err: any){
     console.error("Error:", err.message);
   } finally {
-    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", nullifier_map.get(nullifier_hash).toString());
+    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
     dispAllVar(zkAppInstance);
   }
-  
+  console.log("The block length is", Local.getNetworkState().blockchainLength.toString());
+}
+
+{
+  // Shows the events created while voting
+  const events = await zkAppInstance.fetchEvents(UInt32.from(10), UInt32.from(10));
+  console.log("\nThe events are: ")
+  events.forEach((elem, index, arr) => {
+    console.log(elem.type, JSON.stringify(elem.event))
+  })
 }
 
 {
   // call vote()- correctly
   console.log("\n--- vote() called correctly for private_key[1] - voting for option 1---");
   // create witness for index 1
-  const voter_list_witness = new VoterListMerkleWitness(voter_list_tree.getWitness(1n));
+  const voter_list_witness = new VoterListMerkleWitness(offChainVar.voterListTree.getWitness(1n));
   const ballot_ID = zkAppInstance.ballot_ID.get();
 
   // private_key[1] used - not yet voted with this
   const nullifier_hash = Poseidon.hash(priv_key_array[1].toFields().concat([ballot_ID]))
-  const nullifier_witness = nullifier_map.getWitness(nullifier_hash);
+  const nullifier_witness = offChainVar.nullifierMap.getWitness(nullifier_hash);
 
   // vote for option 1
   const option = 1n;
-  const vote_count_witness = new VoteCountMerkleWitness(vote_count_tree.getWitness(option))
-  const currentVotes = vote_count_tree.getNode(0, option);
+  const vote_count_witness = new VoteCountMerkleWitness(offChainVar.voteCountTree.getWitness(option))
+  const currentVotes = offChainVar.voteCountTree.getNode(0, option);
 
-  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", nullifier_map.get(nullifier_hash).toString());
+  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
   
   try{
     const txn = await Mina.transaction(deployerAccount, () => {
@@ -301,19 +335,64 @@ dispAllVar(zkAppInstance);
     // update the off chain state only if the txn succeeds
     if (txn_result.isSuccess){
       // update off chain state
-      updateOffChainState(nullifier_hash, option);
+      offChainVar.updateOffChainState(nullifier_hash, option);
     }
   } catch(err: any){
     console.error("Error:", err.message);
   } finally {
-    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", nullifier_map.get(nullifier_hash).toString());
+    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
     dispAllVar(zkAppInstance);
   }
+  console.log("The block length is", Local.getNetworkState().blockchainLength.toString());
+}
+
+{
+  // call vote()- incorrectly- double voting attempted
+  console.log("\n--- vote() called incorrectly- double voting attempted ---");
+  // create witness for index 1
+  const voter_list_witness = new VoterListMerkleWitness(offChainVar.voterListTree.getWitness(1n));
+  const ballot_ID = zkAppInstance.ballot_ID.get();
+
+  // private_key[1] used - not yet voted with this
+  const nullifier_hash = Poseidon.hash(priv_key_array[1].toFields().concat([ballot_ID]))
+  const nullifier_witness = offChainVar.nullifierMap.getWitness(nullifier_hash);
+
+  // vote for option 1
+  const option = 1n;
+  const vote_count_witness = new VoteCountMerkleWitness(offChainVar.voteCountTree.getWitness(option))
+  const currentVotes = offChainVar.voteCountTree.getNode(0, option);
+
+  console.log("Before txn call - (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
   
+  try{
+    const txn = await Mina.transaction(deployerAccount, () => {
+      zkAppInstance.vote(
+        priv_key_array[1], 
+        voter_list_witness, 
+        nullifier_witness, 
+        vote_count_witness,
+        currentVotes
+      )
+    });
+
+    await txn.prove(); 
+    const txn_result = await txn.sign([deployerKey]).send();
+    // update the off chain state only if the txn succeeds
+    if (txn_result.isSuccess){
+      // update off chain state
+      offChainVar.updateOffChainState(nullifier_hash, option);
+    }
+  } catch(err: any){
+    console.error("Error:", err.message);
+  } finally {
+    console.log("After txn call- (local) nullifier_map[nullifier_hash]:", offChainVar.nullifierMap.get(nullifier_hash).toString());
+    dispAllVar(zkAppInstance);
+  }
+  console.log("The block length is", Local.getNetworkState().blockchainLength.toString());
 }
 
 console.log("\nThe vote count tree is: ")
-displayTree(vote_count_tree);
+displayTree(offChainVar.voteCountTree);
 
 console.log('Shutting down');
 
