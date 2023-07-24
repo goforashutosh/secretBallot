@@ -11,20 +11,27 @@ import {
     PrivateKey,
     Poseidon,
     MerkleMapWitness,
+    SelfProof,
+    Experimental
   } from 'snarkyjs';
+
+import {
+    voteTxn,
+    voteDataProof, 
+    offChainStateChange, 
+    offChainStateProofs, 
+    VoterListMerkleWitness, 
+    VoteCountMerkleWitness, 
+    offChainStateProofs_zkps
+  } from './voteAggregation.js'
 
 import * as inputs from './inputs.js';
 
-/*
-  Helpful code:
-  https://github.com/o1-labs/docs2/blob/main/examples/zkapps/05-common-types-and-functions/src/BasicMerkleTreeContract.ts
-  merkle_tree.js
-  merkle_map.js
-*/
 
-// root is also one of the levels
-export class VoterListMerkleWitness extends MerkleWitness(inputs.log_num_voters + 1){}
-export class VoteCountMerkleWitness extends MerkleWitness(inputs.log_options + 1){}
+//   Helpful code:
+//   https://github.com/o1-labs/docs2/blob/main/examples/zkapps/05-common-types-and-functions/src/BasicMerkleTreeContract.ts
+//   merkle_tree.js
+//   merkle_map.js
 
 /**
  * @param voter_list_root is the Merkle root of the voter list
@@ -160,5 +167,33 @@ export class secretBallot extends SmartContract {
             // TODO: does this need to be proven?
             this.emitEvent("vote-option", voteCountWitness.calculateIndex()); 
 
+    }
+
+    @method aggregateVote(aggrVoteProof: offChainStateProofs_zkps){
+        // import all state variables
+        const voterListRoot = this.voter_list_root.get();
+        this.voter_list_root.assertEquals(voterListRoot);
+
+        const currentNullifierRoot = this.nullifier_map_root.get();
+        this.nullifier_map_root.assertEquals(currentNullifierRoot);
+
+        const currentVoteCountRoot = this.vote_count_root.get();
+        this.vote_count_root.assertEquals(currentVoteCountRoot);
+
+        const ballotID = this.ballot_ID.get();
+        this.ballot_ID.assertEquals(ballotID);
+
+        // assert that the aggregate proof begins with the correct state variables
+        aggrVoteProof.publicInput.ballotID.assertEquals(ballotID);
+        aggrVoteProof.publicInput.voterListRoot.assertEquals(voterListRoot);
+        aggrVoteProof.publicInput.nullifierMapRoot.assertEquals(currentNullifierRoot);
+        aggrVoteProof.publicInput.voteCountRoot.assertEquals(currentVoteCountRoot);
+
+        // verify that the transition is valid
+        aggrVoteProof.verify();
+
+        // apply the state transition if the proof is correct
+        this.vote_count_root.set(aggrVoteProof.publicInput.modifiedVoteCountRoot);
+        this.nullifier_map_root.set(aggrVoteProof.publicInput.modifiedNullifierMapRoot);
     }
 }

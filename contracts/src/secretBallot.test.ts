@@ -15,10 +15,13 @@ import {
   } from 'snarkyjs';
 
 import {
-    secretBallot,
-    VoterListMerkleWitness, 
-    VoteCountMerkleWitness
+    secretBallot
   } from './secretBallot.js';
+
+import {
+    VoterListMerkleWitness, 
+    VoteCountMerkleWitness, 
+  } from './voteAggregation.js'
 
 import {readFileSync} from 'fs';
 import * as inputs from './inputs.js';

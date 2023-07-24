@@ -14,6 +14,7 @@ In order, to vote, the user controlling the key pair `(sk, pk)` (secret/private 
 2. `pk` is derived from `sk`
 3. the `hash(sk, ballot_ID)` has not been used to vote before: `nullifierMap[hash(sk, ballot_ID)] = 0`.
 
+<!-- https://hackmd.io/@liangcc/nullifier# -->
 Together these 3 imply that the user controls a `sk` which is eligible to vote but has not been used to vote yet (Note that we are placing some assumption on the amount of information that is leaked by these hashes, especially if the same `sk` is used for multiple votes). 
 
 The user also needs to provide the correct witness and the number of votes for the option, he chooses to vote for. 
