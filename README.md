@@ -1,5 +1,7 @@
 # Secret Ballot 
 
+*Update 28 Jul, 2023: I have added vote aggregation using recursion for ZKPs. This is yet to be fully tested, and I also need to add comments.* 
+
 We implement a private voting zkapp. The idea was to try to implement single stage private voting, say like on Twitter- one where participants do not need to register to vote first, as was done in <a href=https://github.com/dymitrlubczyk/mina-voter>Minataur</a>. In a voting procedure with a registration step, users are required to make sure that sufficiently many people have signed up for voting before them but not voted and also that sufficient time has passed between their registration and voting transactions, so that their vote may be private. This can be difficult. Further, it seemed like bad UX. 
 
 In our implementation, a centralized party (let's assume honest for now) sets up the voting contract (called `secretBallot`), which includes as state variables: 
@@ -27,10 +29,6 @@ Set inputs in inputs.ts. Then, run createNewKeysAndRun.sh file. This will create
 ```sh
 npm run build
 ```
-
-## How to run tests
-
-Testing currently tests that the votes are counted correctly and that double voting is not permitted.
 
 ```sh
 npm run test
