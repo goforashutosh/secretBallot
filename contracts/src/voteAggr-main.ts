@@ -36,71 +36,12 @@ import {
   VoteCountMerkleWitness
 } from './voteAggregation.js'
 
+import {offChainStorage, displayTree, dispAllVar} from './offChainStorage.js'
+
 import {readFileSync} from 'fs';
 import * as inputs from './inputs.js';
 
-// import assert;
-// var assert = require('assert');
-
-/**
-* Displays all relevant state variables of the zkapp
-* @param zk_app_inst The zkapp you want to display
-*/
-function dispAllVar(zk_app_inst: secretBallot){
-  console.log("\nAll state variables of the contract are:")
-  console.log("voter list root: ", zk_app_inst.voter_list_root.get().toString());
-  console.log("vote count root: ", zk_app_inst.vote_count_root.get().toString());
-  console.log("nullifier map root: ", zk_app_inst.nullifier_map_root.get().toString());
-  console.log("initialised_flag: ", zk_app_inst.initialised_flag.get().toString());
-  console.log("ballot_ID: ", zk_app_inst.ballot_ID.get().toString());
-}
-
-/**
-* Function displays the given Merkle tree level by level
-* @param mtree is the Merkle tree you want to display
-*/
-function displayTree(mtree: MerkleTree){
-  let h = mtree.height;
-  for(let i= 0; i<h; i++){
-    console.log("Level:", i);
-    for(let j=0; j < 2**(h-1-i); j++){
-      console.log(mtree.getNode(i,BigInt(j)).toString());
-    }
-  }
-}
-
-/**
- * Used to store the Merkle trees and maps
- */
-class offChainStorage{
-  readonly voterListTree: MerkleTree;
-  voteCountTree: MerkleTree; 
-  nullifierMap: MerkleMap;
-  
-  /**
-   * @param log_num_voters is the ceiling of the log of the number of voters
-   * @param log_options is the ceiling of the log of the number of voting options
-   * @param voterList is array containing hashes of public keys which are allowed to vote
-   */
-  constructor(log_num_voters: number, log_options: number, voterList: Field[]){
-    // need to add 1 to make the height right
-    this.voterListTree = new MerkleTree(log_num_voters + 1);
-    this.voteCountTree= new MerkleTree(log_options + 1);
-    this.nullifierMap= new MerkleMap();
-
-    this.voterListTree.fill(voterList);
-
-  }
-
-  /**  
-  * Used to update the nullifierMap and voteCountTree after a successful vote
-  */
-  updateOffChainState(nullifier_hash: Field, vote_option: bigint){
-    this.nullifierMap.set(nullifier_hash, Field(1));
-    const current_votes = this.voteCountTree.getNode(0, vote_option);
-    this.voteCountTree.setLeaf(vote_option, current_votes.add(1));
-  }
-}
+// The following two functions allow us to merge the proofs of N votes into a single proof
 
 /**
  * This function takes an array (length=N) of proofs and merges proofs (2i, 2i+1) to create an array of proofs ceil(N/2) long. This can be parallelised in practice
@@ -249,6 +190,13 @@ console.log("Success compiling");
 
 const ballot_ID = zkAppInstance.ballot_ID.get();
 
+/**
+ * An internal function which generates the correct vote proof given the index of the private key in the array priv_key_array above;
+ * Used for quickly simulating voters
+ * @param priv_key_index is the index of the private key used for voting in the array priv_key_array above
+ * @param option is the index you are voting for
+ * @returns the correct vote proof corresponding to the above choices
+ */
 async function createVote(priv_key_index: number, option: bigint): Promise<SelfProof<voteTxn>>{
   const voter_list_witness = new VoterListMerkleWitness(offChainVar.voterListTree.getWitness(BigInt(priv_key_index)));
   
@@ -315,7 +263,7 @@ for(let i=0; i<voteProofs.length; i++){
   seqVoteProofs.push(await offChainStateProofs.vote(stateChange, voteProofs[i], nullifierWitness, voteCountWitness, currentVotes));
 }
 
-console.log("Calling mergeSequentialProofs");
+console.log("Calling mergeSequentialProofs top create a single proof");
 
 const mergedVoteProof = await mergeSequentialProofs(seqVoteProofs);
 
@@ -330,20 +278,21 @@ mergedVoteProof.publicInput.modifiedNullifierMapRoot.assertEquals(offChainVar.nu
 mergedVoteProof.publicInput.modifiedVoteCountRoot.assertEquals(offChainVar.voteCountTree.getRoot());
 mergedVoteProof.publicInput.nullifierMapRoot.assertEquals(zkAppInstance.nullifier_map_root.get());
 mergedVoteProof.publicInput.voteCountRoot.assertEquals(zkAppInstance.vote_count_root.get());
+console.log("Assertions succeed");
 
 {
   // call aggregateVote() on the zkApp
 
-  console.log("\n--- aggregateVote() called correctly ---");
+  console.log("\n--- aggregateVote() called correctly on the zkapp ---");
   
   try{
     const txn = await Mina.transaction(deployerAccount, () => {
       zkAppInstance.aggregateVote(mergedVoteProof)
     });
 
-    console.log("Hello1");
+    // console.log("Hello1");
     await txn.prove(); 
-    console.log("Hello1");
+    // console.log("Hello1");
     const txn_result = await txn.sign([deployerKey]).send();
     if (txn_result.isSuccess){
       console.log("Transaction successful");

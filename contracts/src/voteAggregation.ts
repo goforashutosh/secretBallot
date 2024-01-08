@@ -22,7 +22,9 @@ import * as inputs from './inputs.js';
 export class VoterListMerkleWitness extends MerkleWitness(inputs.log_num_voters + 1){}
 export class VoteCountMerkleWitness extends MerkleWitness(inputs.log_options + 1){}
 
-
+/**
+* Struct to store data related to an end user's vote
+*/ 
 export class voteTxn extends Struct({
   nullifierHash: Field, 
   voteChoice: Field, 
@@ -31,9 +33,10 @@ export class voteTxn extends Struct({
   ballotID: Field
 }){}
 
-// this is used by the client to create a proof that his nullifierHash is correct
-// and voteChoice provided is valid
-// verify fn on this will be used by both the zk-app on MINA and the aggregator
+/**
+ * This is used by the end user to create a proof that he is a valid voter and his nullifierHash is correct
+ * verifyData fn on this will be used by both the zkapp on MINA and the aggregator
+ */
 export const voteDataProof = Experimental.ZkProgram({
   publicInput: voteTxn,
   methods: {
@@ -68,17 +71,18 @@ export const voteDataProof = Experimental.ZkProgram({
           
           // ensure that the provided nullifier is correct
           voterInfo.nullifierHash.assertEquals(derivedNullifierHash);
-
-          // publicly provided voteChoice is the same as the one in the proof
-          // voteChoice.assertEquals(publicInput.voteChoice); // doesn't seem possible to prove after changing publicInput
       }
     }
   }
 });
 
-// using Rollup idea for high throughput given at:
+// In the following, we are using the Rollup idea for high throughput given at:
 // https://docs.minaprotocol.com/zkapps/tutorials/recursion
 
+/**
+ * This Struct contains the mutable state variables of the zkapp and their modified values. 
+ * This is used as a public input for aggregator proofs, which show that there exist a valid transition between the original and modified state variables
+ */
 export class offChainStateChange extends Struct({
   ballotID: Field,
   voterListRoot: Field,
@@ -90,14 +94,13 @@ export class offChainStateChange extends Struct({
   modifiedVoteCountRoot: Field
 }) {}
 
+/**
+ * Best way to view these is that you are trying to convince the on chain verifier that a certain state transition is valid. 
+ * The simplest is the single vote transition given by the vote method, which just takes one vote and applies it to the state to create a state transition. 
+ * The merge method combines two consecutive valid state transitions and creates a proof for the validity of the combined transition. 
+ */
 export const offChainStateProofs = Experimental.ZkProgram({
   publicInput: offChainStateChange,
-  // Best way to view these is that you are trying to convince the on chain 
-  // verifier that a certain state transition is valid. The simplest is the single
-  // vote transition given by the vote method, which just takes one vote and applies it 
-  // to the state to create a state transition. The merge method combines two 
-  // consecutive valid state transitions and creates a proof for the validity of the 
-  // combined transition. 
   methods : {
     vote: {
       privateInputs: [

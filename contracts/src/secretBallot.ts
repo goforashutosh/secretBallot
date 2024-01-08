@@ -54,8 +54,6 @@ export class secretBallot extends SmartContract {
         "vote-option": Field
     }
 
-    // TODO: add a time limit using this.network.blocklength
-
     init(){
         super.init();
         this.initialised_flag.set(Bool(false));
