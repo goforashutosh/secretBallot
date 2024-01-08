@@ -17,7 +17,7 @@ In order, to vote, the user controlling the key pair `(sk, pk)` (secret/private 
 2. `pk` is derived from `sk`
 3. the `hash(sk, ballot_ID)` has not been used to vote before: `nullifierMap[hash(sk, ballot_ID)] = 0`.
 
-Together these 3 imply that the user controls a `sk` which is eligible to vote but has not been used to vote yet (Note that we are placing some assumption on the amount of information that is leaked by these hashes, especially if the same `sk` is used for multiple votes; also see <a href = https://hackmd.io/@liangcc/nullifier#>this</a> for more information on nullifiers).
+Together these three imply that the user controls a `sk` which is eligible to vote but has not been used to vote yet (Note that we are placing some assumption on the amount of information that is leaked by these hashes, especially if the same `sk` is used for multiple votes; also see <a href = https://hackmd.io/@liangcc/nullifier#>this</a> for more information on nullifiers).
 
 The user also needs to provide the correct witness and the number of votes for the option, he chooses to vote for.
 
@@ -25,7 +25,7 @@ The zkapp is implemented in [secretBallot.ts](contracts/src/secretBallot.ts) and
 
 ## Vote aggregation
 
-We also provide the functionality to aggregate the votes of multiple voters into a single proof and use that to modify the on-chain state. This is achieved using the recursion feature of zk proofs on MINA. We follow the idea for implementing rollups described in [here](https://docs.minaprotocol.com/zkapps/tutorials/recursion).
+We also provide the functionality to aggregate the votes of multiple voters into a single proof and use that to modify the on-chain state. This is achieved using the recursion feature of zk proofs on MINA. We follow the idea for implementing rollups described [here](https://docs.minaprotocol.com/zkapps/tutorials/recursion).
 
 The Structs and ZKPrograms required for aggregation are implemented and described in [voteAggregation.ts](contracts/src/voteAggregation.ts). An example program, which generates multiple votes and aggregates them is presented in [voteAggr-main.ts](contracts/src/voteAggr-main.ts).
 
